@@ -216,9 +216,8 @@ fi
 # suite leaves an empty plist in ~/Library/Preferences. The tests already clear
 # the domains, but cfprefsd writes the emptied file back out around the time the
 # process that owned it exits, so only a caller that outlives the run can remove
-# them. `MetricsTests` keeps every suite name inside these two namespaces (a
-# check in the test file holds it to that), which is what makes this sweep
-# complete rather than a list to keep in step by hand.
+# them. `PreferenceNamespaceTests` scans every compiled Swift test file against
+# these namespaces, which keeps this sweep complete without a second list.
 discard_test_preferences() {
     local preferences="${1:-$HOME/Library/Preferences}" name attempt
     local survivors=0 quiet_passes=0
@@ -255,6 +254,48 @@ if (( TEST )); then
         Sources/Vorssaint/Core/QuitProtectionSupport.swift
         Sources/Vorssaint/Core/QuitProtectionStrings.swift
         Sources/Vorssaint/Core/Defaults.swift
+        Sources/Vorssaint/Core/NotchStrings.swift
+        Sources/Vorssaint/Core/NotchTourStrings.swift
+        Sources/Vorssaint/Core/NotchEditorStrings.swift
+        Sources/Vorssaint/Core/NotchActivityStrings.swift
+        Sources/Vorssaint/Services/Notch/NotchTimerSupport.swift
+        Sources/Vorssaint/Services/Notch/NotchTimerAlert.swift
+        Sources/Vorssaint/Services/Notch/NotchAccessorySupport.swift
+        Sources/Vorssaint/Services/QuickTools/CameraPreviewSupport.swift
+        Sources/Vorssaint/Core/NotchMusicExtrasStrings.swift
+        Sources/Vorssaint/Services/Notch/NotchLyricsSupport.swift
+        Sources/Vorssaint/Services/Notch/NotchQueueSupport.swift
+        Sources/Vorssaint/Core/NotchFilesStrings.swift
+        Sources/Vorssaint/Services/Notch/NotchFileToolsSupport.swift
+        Sources/Vorssaint/Services/Notch/NotchDownloadSupport.swift
+        Sources/Vorssaint/Services/Notch/NotchDownloadProgressObserver.swift
+        Sources/Vorssaint/Core/NotchCalendarStrings.swift
+        Sources/Vorssaint/Core/NotchNotificationStrings.swift
+        Sources/Vorssaint/Core/NotchGestureStrings.swift
+        Sources/Vorssaint/Core/NotchAgentStrings.swift
+        Sources/Vorssaint/Services/Notch/NotchAgentSupport.swift
+        Sources/Vorssaint/Services/AgentUsage/AgentUsageModels.swift
+        Sources/Vorssaint/Services/AgentUsage/AgentPricing.swift
+        Sources/Vorssaint/Services/AgentUsage/AgentLogParser.swift
+        Sources/Vorssaint/Services/AgentUsage/AgentUsageSummary.swift
+        Sources/Vorssaint/Services/AgentUsage/AgentUsageStore.swift
+        Sources/Vorssaint/Services/AgentUsage/AgentClaudeAppUsage.swift
+        Sources/Vorssaint/Services/Notch/NotchGestureSupport.swift
+        Sources/Vorssaint/Services/Notch/NotchSectionPaging.swift
+        Sources/Vorssaint/Services/Notch/NotchSliderEditing.swift
+        Sources/Vorssaint/Services/Notch/NotchNotificationSupport.swift
+        Sources/Vorssaint/Services/Notch/NotchNotificationReaderCore.swift
+        Sources/Vorssaint/Services/Notch/NotchCalendarSupport.swift
+        Sources/Vorssaint/Services/Notch/NotchSupport.swift
+        Sources/Vorssaint/Services/Notch/NotchAudioLevelSupport.swift
+        Sources/Vorssaint/Services/Notch/NotchVolumeKeyGate.swift
+        Sources/Vorssaint/Services/Notch/NotchMusicSupport.swift
+        Sources/Vorssaint/UI/Notch/NotchEqualizerBars.swift
+        Sources/Vorssaint/Services/Notch/NotchMusicAutomationSupport.swift
+        Sources/Vorssaint/Services/Notch/NotchMusicAutomation.swift
+        Sources/Vorssaint/Services/Notch/NotchPlaybackSource.swift
+        Sources/Vorssaint/Services/Notch/NotchPlaybackCommand.swift
+        Sources/Vorssaint/Services/Notch/NotchMusicCommandWriter.swift
         Sources/Vorssaint/Core/FeatureCatalog.swift
         Sources/Vorssaint/Core/FeaturePresets.swift
         Sources/Vorssaint/Core/FeatureHubStrings.swift
@@ -262,6 +303,7 @@ if (( TEST )); then
         Sources/Vorssaint/Core/SettingsBackupSupport.swift
         Sources/Vorssaint/Core/BackupStrings.swift
         Sources/Vorssaint/Core/SnippetStrings.swift
+        Sources/Vorssaint/Core/AlertSoundStrings.swift
         Sources/Vorssaint/Core/BrightnessStrings.swift
         Sources/Vorssaint/Core/MediaImageStrings.swift
         Sources/Vorssaint/Core/QuickToggleStrings.swift
@@ -278,6 +320,8 @@ if (( TEST )); then
         Sources/Vorssaint/Core/MenuBarAppearanceStrings.swift
         Sources/Vorssaint/Core/AppAppearance.swift
         Sources/Vorssaint/Core/AppearanceStrings.swift
+        Sources/Vorssaint/Core/GeneralSettingsStrings.swift
+        Sources/Vorssaint/Core/SettingsPageStrings.swift
         Sources/Vorssaint/Core/BatteryTimeStrings.swift
         Sources/Vorssaint/Core/KeepAwakeStrings.swift
         Sources/Vorssaint/Core/BluetoothSleepStrings.swift
@@ -293,6 +337,13 @@ if (( TEST )); then
         Sources/Vorssaint/Services/Recorder/RecorderSampleTiming.swift
         Sources/Vorssaint/Services/Recorder/RecorderWriter.swift
         Sources/Vorssaint/Services/Recorder/RecorderCaptureEngine.swift
+        Sources/Vorssaint/Core/RecorderExportStrings.swift
+        Sources/Vorssaint/Services/Recorder/RecorderComposer.swift
+        Sources/Vorssaint/Services/Recorder/RecorderComposerPlan.swift
+        Sources/Vorssaint/Services/Recorder/RecorderCursorSprite.swift
+        Sources/Vorssaint/Services/Recorder/RecorderTextRenderer.swift
+        Sources/Vorssaint/Services/Recorder/RecorderImageRenderer.swift
+        Sources/Vorssaint/Services/Recorder/RecorderExporter.swift
         Sources/Vorssaint/Services/Recorder/RecorderComposition.swift
         Sources/Vorssaint/Services/Recorder/RecordingSharingSupport.swift
         Sources/Vorssaint/Services/PrivateFileStore.swift
@@ -314,19 +365,23 @@ if (( TEST )); then
         Sources/Vorssaint/Core/Localizations/Strings+*.swift
         Sources/Vorssaint/Core/FeatureStrings.swift
         Sources/Vorssaint/Core/KillProcessStrings.swift
+        Sources/Vorssaint/Core/PortManagerStrings.swift
         Sources/Vorssaint/Core/WhatsAppDownloadStrings.swift
         Sources/Vorssaint/Core/WhatsAppOrganizerStrings.swift
         Sources/Vorssaint/Core/ReleaseNotes.swift
         Sources/Vorssaint/Core/URLCleaning.swift
         Sources/Vorssaint/Services/GeneralPasteboardAccess.swift
+        Sources/Vorssaint/Services/Clipboard/ClipboardHistoryWrite.swift
         Sources/Vorssaint/Services/Audio/MixerRoutingSupport.swift
         Sources/Vorssaint/Services/Audio/MusicLaunchSupport.swift
         Sources/Vorssaint/Services/Bluetooth/BluetoothSleepSupport.swift
         Sources/Vorssaint/UI/MenuPanel/MixerPercentNativeTextField.swift
+        Sources/Vorssaint/UI/MenuPanel/MixerAppDragSource.swift
         Sources/Vorssaint/Services/Audio/BoostLimiter.swift
         Sources/Vorssaint/Services/Audio/MixerRender.swift
         Sources/Vorssaint/Services/Audio/PreciseVolumeRollerSupport.swift
         Sources/Vorssaint/Services/DockPreview/DockPreviewSupport.swift
+        Sources/Vorssaint/Services/DockPreview/DockAutohideHold.swift
         Sources/Vorssaint/Services/Homebrew/HomebrewSupport.swift
         Sources/Vorssaint/Services/AppUpdates/AppUpdatesSupport.swift
         Sources/Vorssaint/Services/AppUpdates/AppUpdateFeedSupport.swift
@@ -337,6 +392,8 @@ if (( TEST )); then
         Sources/Vorssaint/Services/Clipboard/ClipboardAutoClearSupport.swift
         Sources/Vorssaint/Services/AutoQuit/AutoQuitSupport.swift
         Sources/Vorssaint/Services/Shelf/ShelfSupport.swift
+        Sources/Vorssaint/Services/Shelf/ShelfFilePromiseTransfer.swift
+        Sources/Vorssaint/Core/ShelfPromiseDeliveryStrings.swift
         Sources/Vorssaint/Services/Finder/FinderRenameSupport.swift
         Sources/Vorssaint/Services/Update/UpdateInstallerSupport.swift
         Sources/Vorssaint/Services/Update/UpdateServiceSupport.swift
@@ -344,7 +401,10 @@ if (( TEST )); then
         Sources/Vorssaint/Services/LaunchAtLoginSupport.swift
         Sources/Vorssaint/UI/Settings/SettingsSearchSupport.swift
         Sources/Vorssaint/UI/Settings/FeatureVisibilitySupport.swift
+        Sources/Vorssaint/UI/Settings/SettingsWindow.swift
+        Sources/Vorssaint/Core/SettingsNavigationStrings.swift
         Sources/Vorssaint/App/MenuBarSpacingSupport.swift
+        Sources/Vorssaint/App/MenuBarAllowanceSupport.swift
         Sources/Vorssaint/App/StatusItemAnchorSupport.swift
         Sources/Vorssaint/Services/DockClick/DockClickSupport.swift
         Sources/Vorssaint/Services/Finder/CutPasteProgressSupport.swift
@@ -382,6 +442,7 @@ if (( TEST )); then
         Sources/Vorssaint/Services/QuickTools/QuickTogglesSupport.swift
         Sources/Vorssaint/Services/QuickTools/ScreenshotCapturePolicy.swift
         Sources/Vorssaint/Services/QuickTools/ScreenshotSupport.swift
+        Sources/Vorssaint/Services/QuickTools/ScreenshotRenderer.swift
         Sources/Vorssaint/Services/QuickTools/RecentCaptureStore.swift
         Sources/Vorssaint/Services/QuickTools/ScreenshotSharingSupport.swift
         Sources/Vorssaint/Services/QuickTools/WindowActivationPolicy.swift
@@ -389,6 +450,7 @@ if (( TEST )); then
         Sources/Vorssaint/Services/SuperKey/SuperKeySupport.swift
         Sources/Vorssaint/Services/SuperKey/SuperKeyMappingGuard.swift
         Sources/Vorssaint/Core/SuperKeyStrings.swift
+        Sources/Vorssaint/Core/InputSourceSelection.swift
         Sources/Vorssaint/Services/SessionActivity.swift
         Sources/Vorssaint/Services/SessionActivitySupport.swift
         Sources/Vorssaint/Services/ScrollWheelSupport.swift
@@ -408,9 +470,12 @@ if (( TEST )); then
         Sources/Vorssaint/Services/BoundedProcessRunner.swift
         Sources/Vorssaint/Services/DetachedProcess.swift
         Sources/Vorssaint/Services/ShellSupport.swift
+        Sources/Vorssaint/Services/PortManager/PortManagerSupport.swift
         Sources/Vorssaint/Services/Metrics/NetworkProcessSupport.swift
         Sources/Vorssaint/Services/Metrics/NetworkSampler.swift
+        Sources/Vorssaint/Services/Metrics/NetworkAddressService.swift
         Sources/Vorssaint/Services/Metrics/SpeedTest.swift
+        Sources/Vorssaint/Services/Metrics/PeripheralBatterySampler.swift
         Sources/Vorssaint/Services/Metrics/PeripheralBatterySupport.swift
         Sources/Vorssaint/Services/Metrics/DiskSupport.swift
         Sources/Vorssaint/Services/Metrics/MonitorSamplingPolicy.swift
@@ -421,6 +486,7 @@ if (( TEST )); then
         Sources/Vorssaint/Services/WindowLayout/WindowGestureSupport.swift
         Sources/Vorssaint/Core/WindowDirectionalStrings.swift
         Sources/Vorssaint/Services/CleaningMode/CleaningUnlockCounter.swift
+        Sources/Vorssaint/Services/CleaningMode/CleaningMouseReleaseGate.swift
         Sources/Vorssaint/Services/Display/ExtraBrightnessSupport.swift
         Sources/Vorssaint/Services/Display/BrightnessSupport.swift
         Sources/Vorssaint/Services/Cleaner/CleanerSupport.swift
@@ -428,6 +494,7 @@ if (( TEST )); then
         Sources/Vorssaint/Services/Cleaner/CleanerSchedule.swift
         Sources/Vorssaint/Services/Uninstall/UninstallerSupport.swift
         Sources/Vorssaint/Services/ManagedDownloads/WhatsAppDownloadSupport.swift
+        Sources/Vorssaint/Core/SecureInputSupport.swift
         Tests/*.swift
         build/generated-tests/*.swift
     )
@@ -482,6 +549,10 @@ echo "▸ Compiling Now Playing adapter…"
 swiftc -O -target "$TARGET" -sdk "$SDK" "${SDK_COMPAT_FLAGS[@]}" -emit-library \
     -module-name VorssaintNowPlaying \
     Sources/NowPlayingAdapter/NowPlayingAdapter.swift \
+    Sources/NowPlayingAdapter/NowPlayingQueue.swift \
+    Sources/NowPlayingAdapter/NowPlayingSelection.swift \
+    Sources/Vorssaint/Services/Notch/NotchPlaybackSource.swift \
+    Sources/Vorssaint/Services/Notch/NotchPlaybackCommand.swift \
     -o "build/$NOW_PLAYING_ADAPTER"
 
 echo "▸ Generating app icon…"
@@ -526,6 +597,7 @@ cp "build/$FAN_HELPER_ID" "$STAGE/Contents/Library/LaunchServices/$FAN_HELPER_ID
 mkdir -p "$STAGE/Contents/Frameworks"
 cp "build/$NOW_PLAYING_ADAPTER" "$STAGE/Contents/Frameworks/$NOW_PLAYING_ADAPTER"
 cp Resources/now-playing.pl "$STAGE/Contents/Resources/now-playing.pl"
+cp Resources/agent-prices.json "$STAGE/Contents/Resources/agent-prices.json"
 cp Resources/com.vorssaint.utils.fan-control.plist \
     "$STAGE/Contents/Library/LaunchDaemons/$FAN_HELPER_ID.plist"
 cp Resources/Info.plist "$STAGE/Contents/Info.plist"
@@ -712,19 +784,35 @@ wait_for_install_metadata() {
     done
 }
 
-mkdir -p "build/stage"
-BUILD_STAGE="build/stage/$APP_NAME.app"
-rm -rf "$BUILD_STAGE"
-ditto --noextattr --noqtn "$STAGE" "$BUILD_STAGE"
-xattr -c -r "$BUILD_STAGE" 2>/dev/null || true
-if ! codesign --verify --deep --strict "$BUILD_STAGE" >/dev/null 2>&1; then
-    if xattr -lr "$BUILD_STAGE" 2>/dev/null | grep -Eq 'com\.apple\.(FinderInfo|ResourceFork|provenance|fileprovider)'; then
-        echo "  build/stage copy has local filesystem metadata; temp bundle was verified"
-    else
-        codesign --verify --deep --strict "$BUILD_STAGE"
-    fi
+# Installed development builds only need the copy in /Applications. Retaining
+# another app in each checkout pollutes application search with stale builds.
+if (( DEV )); then
+    for old_bundle in "build/stage/$APP_NAME.app" "build/stage.noindex/$APP_NAME.app"; do
+        if [[ -d "$old_bundle" ]]; then
+            /System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister \
+                -u "$PWD/$old_bundle" >/dev/null 2>&1 || true
+            rm -rf "$old_bundle"
+        fi
+    done
 fi
-echo "✓ Bundle ready: $BUILD_STAGE"
+
+if (( !DEV || !INSTALL )); then
+    STAGE_DIRECTORY="build/stage"
+    (( DEV )) && STAGE_DIRECTORY="build/stage.noindex"
+    mkdir -p "$STAGE_DIRECTORY"
+    BUILD_STAGE="$STAGE_DIRECTORY/$APP_NAME.app"
+    rm -rf "$BUILD_STAGE"
+    ditto --noextattr --noqtn "$STAGE" "$BUILD_STAGE"
+    xattr -c -r "$BUILD_STAGE" 2>/dev/null || true
+    if ! codesign --verify --deep --strict "$BUILD_STAGE" >/dev/null 2>&1; then
+        if xattr -lr "$BUILD_STAGE" 2>/dev/null | grep -Eq 'com\.apple\.(FinderInfo|ResourceFork|provenance|fileprovider)'; then
+            echo "  staging copy has local filesystem metadata; temp bundle was verified"
+        else
+            codesign --verify --deep --strict "$BUILD_STAGE"
+        fi
+    fi
+    echo "✓ Bundle ready: $BUILD_STAGE"
+fi
 
 if (( INSTALL )); then
     echo "▸ Installing into /Applications…"

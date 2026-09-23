@@ -18,6 +18,14 @@ struct SwitcherActivationPlan: Equatable {
     let restoreSourceWhenTargetMinimizes: Bool
 }
 
+/// How the owning app is brought forward. App-level activation can raise
+/// sibling windows even without activateAllWindows, so a plan
+/// scoped to one window asks the window server to front that window alone.
+enum SwitcherAppActivationRoute: Equatable {
+    case exactWindow(CGWindowID)
+    case wholeApp
+}
+
 /// Shared by the bounded focus passes on the main thread. Once a pass sees
 /// a newer user action, the remaining passes cannot reclaim the old target.
 final class SwitcherWindowFocusRetryState {
@@ -46,6 +54,7 @@ final class SwitcherWindowFocusRetryState {
                         targetMinimizedState: Bool?,
                         targetAppWindowIDs: @autoclosure () -> Set<CGWindowID>,
                         targetAppFocusedWindowID: @autoclosure () -> CGWindowID?,
+                        ignoresForeground: Bool = false,
                         ownPID: pid_t = ProcessInfo.processInfo.processIdentifier) -> Bool {
         guard isActive else { return false }
         isActive = SwitcherSupport.shouldContinueFocusRetry(
@@ -58,6 +67,7 @@ final class SwitcherWindowFocusRetryState {
             knownWindowIDs: knownWindowIDs,
             targetAppWindowIDs: targetAppWindowIDs(),
             targetAppFocusedWindowID: targetAppFocusedWindowID(),
+            ignoresForeground: ignoresForeground,
             ownPID: ownPID
         )
         observe(targetMinimizedState: targetMinimizedState)
@@ -281,13 +291,28 @@ struct SwitcherIconRowLayout: Equatable {
     static let simpleTitleSpacing: CGFloat = 6
     static let simpleTitleScrollPadding: CGFloat = 1
 
+    /// The width `cardCount` preview cards lay out to, including the spacing
+    /// the row puts between them. The preview viewport is sized from this and
+    /// decides whether it has anything to scroll from it, so the two can never
+    /// disagree about what fits.
+    static func naturalPreviewWidth(cardCount: Int) -> CGFloat {
+        let count = max(0, cardCount)
+        return CGFloat(count) * previewCardWidth + CGFloat(max(0, count - 1)) * spacing
+    }
+
+    /// Whether every preview card is on screen at once, so the scroll view has
+    /// nothing to scroll to.
+    func previewFitsWithoutScrolling(cardCount: Int) -> Bool {
+        Self.naturalPreviewWidth(cardCount: cardCount) <= previewContentWidth
+    }
+
     /// The widest row the panel has to hold. Panel sizing and the rows
     /// themselves both measure against this one value, so a row can never come
     /// out wider than the window drawing it and get clipped (issues #710, #730).
     func contentWidth(simpleMode: Bool, windowRow: Bool) -> CGFloat {
         let hintWidth = showsShortcutHints ? Self.hintBarWidth : 0
         guard simpleMode else {
-            return max(appRowSurfaceWidth, previewSurfaceWidth, hintWidth)
+            return max(0, panelSize.width - Self.padding * 2)
         }
         return max(appRowSurfaceWidth,
                    windowRow ? 0 : simpleTitleSurfaceWidth,
@@ -325,6 +350,8 @@ struct SwitcherIconRowLayout: Equatable {
 
     static func compute(appCount rawAppCount: Int,
                         selectedWindowCount rawWindowCount: Int,
+                        maximumWindowCount: Int = 1,
+                        sessionScope: SwitcherSessionScope = .allApps,
                         screenVisibleFrame: CGRect,
                         showsShortcutHints: Bool = true,
                         tileWidth: CGFloat = appTileWidth) -> SwitcherIconRowLayout {
@@ -333,13 +360,22 @@ struct SwitcherIconRowLayout: Equatable {
         let usableWidth = max(320, screenVisibleFrame.width * 0.96)
         let maxContentWidth = max(tileWidth, usableWidth - padding * 2)
         let naturalAppRowWidth = CGFloat(appCount) * tileWidth + CGFloat(max(0, appCount - 1)) * spacing
-        let naturalPreviewWidth = CGFloat(windowCount) * previewCardWidth
-            + CGFloat(max(0, windowCount - 1)) * spacing
+        let naturalPreviewWidth = Self.naturalPreviewWidth(cardCount: windowCount)
         let maxAppContentWidth = max(tileWidth, maxContentWidth - rowHorizontalPadding * 2)
         let maxPreviewContentWidth = max(previewCardWidth, maxContentWidth - previewPanelPadding * 2)
         let appRowWidth = min(naturalAppRowWidth, maxAppContentWidth)
         let appRowSurfaceWidth = min(appRowWidth + rowHorizontalPadding * 2, maxContentWidth)
-        let previewWidth = min(max(previewCardWidth, naturalPreviewWidth), maxPreviewContentWidth)
+        // Reserve room for a pair whenever any app has multiple windows. Use
+        // the whole list so selecting another app never moves the icon row.
+        // A focused-app session has no other apps to keep stationary; let
+        // its windows fill the available display before scrolling.
+        let reservedCardCount = sessionScope == .frontmostApp
+            ? max(windowCount, maximumWindowCount)
+            : min(2, max(windowCount, maximumWindowCount))
+        let previewCeiling = min(maxPreviewContentWidth,
+                                 max(Self.naturalPreviewWidth(cardCount: reservedCardCount),
+                                     appRowSurfaceWidth - previewPanelPadding * 2))
+        let previewWidth = min(naturalPreviewWidth, previewCeiling)
         let previewSurfaceWidth = min(previewWidth + previewPanelPadding * 2, maxContentWidth)
         let naturalSimpleTitleWidth = CGFloat(windowCount) * simpleTitleChipMaxWidth
             + CGFloat(max(0, windowCount - 1)) * simpleTitleSpacing
@@ -347,7 +383,9 @@ struct SwitcherIconRowLayout: Equatable {
             + simpleTitlePanelPadding * 2
         let simpleTitleSurfaceWidth = min(naturalSimpleTitleWidth, maxContentWidth)
         let hintWidth = showsShortcutHints ? min(hintBarWidth, maxContentWidth) : 0
-        let contentWidth = min(max(appRowSurfaceWidth, previewSurfaceWidth, hintWidth), maxContentWidth)
+        let contentWidth = min(max(appRowSurfaceWidth,
+                                   previewCeiling + previewPanelPadding * 2,
+                                   hintWidth), maxContentWidth)
         let visibleIconCount = max(1, min(appCount, Int((maxAppContentWidth + spacing) / (tileWidth + spacing))))
         let width = contentWidth + padding * 2
         let shortcutHintHeight = showsShortcutHints ? hintGap + hintHeight : 0
@@ -829,6 +867,23 @@ enum SwitcherSupport {
         appIsHidden && !windowSpaces.isEmpty
     }
 
+    /// A partial Accessibility list cannot veto windows on another desktop.
+    /// Still reject unmatched visible surfaces and helpers excluded from cycling.
+    static func keepsUnmatchedWindow(isOnHiddenSpace: Bool,
+                                     isConfirmedHiddenAppWindow: Bool,
+                                     isExcludedFromWindowCycle: Bool,
+                                     isOrderedIn: Bool?,
+                                     allowsUnverifiedHiddenSpace: Bool) -> Bool {
+        guard !isExcludedFromWindowCycle else { return false }
+        // Hiding an app orders its windows out without closing them.
+        if isConfirmedHiddenAppWindow { return true }
+        guard isOnHiddenSpace else { return false }
+        // Preserve the earlier empty-Accessibility and fullscreen exceptions:
+        // ordering out can also mean minimized, not closed. Only broaden that
+        // fallback when the native query positively witnesses a live window.
+        return allowsUnverifiedHiddenSpace || isOrderedIn == true
+    }
+
     /// Whether a WindowServer surface whose owner never answered Accessibility
     /// is a stale leftover instead of a real window (issue #807). The ghost
     /// veto normally comes from the Accessibility cross-check, but a busy or
@@ -1116,6 +1171,18 @@ enum SwitcherSupport {
         return groups
     }
 
+    static func windowlessAppDividerPIDs(items: [SwitcherItem]) -> Set<pid_t> {
+        let groups = appGroups(items: items)
+        let windowedPIDs = Set(items.filter { !$0.isAppEntry }.map(\.pid))
+        var dividers: Set<pid_t> = []
+        for (previous, current) in zip(groups, groups.dropFirst()) {
+            if windowedPIDs.contains(previous.pid) != windowedPIDs.contains(current.pid) {
+                dividers.insert(current.pid)
+            }
+        }
+        return dividers
+    }
+
     /// Where a session starts. `pids` is the list in display order, one entry
     /// per position the shortcut steps through: one per window in the grid,
     /// one per app in the icon row.
@@ -1216,6 +1283,14 @@ enum SwitcherSupport {
         activationPlan(targetsSpecificWindow: targetsSpecificWindow).activateAllWindows
     }
 
+    static func appActivationRoute(plan: SwitcherActivationPlan,
+                                   windowID: CGWindowID?) -> SwitcherAppActivationRoute {
+        if !plan.activateAllWindows, let windowID {
+            return .exactWindow(windowID)
+        }
+        return .wholeApp
+    }
+
     static func shouldRestoreSourceAfterTargetMinimize(targetPID: pid_t,
                                                        sourcePID: pid_t?,
                                                        frontmostPID: pid_t?,
@@ -1293,12 +1368,20 @@ enum SwitcherSupport {
                                          knownWindowIDs: Set<CGWindowID> = [],
                                          targetAppWindowIDs: @autoclosure () -> Set<CGWindowID> = [],
                                          targetAppFocusedWindowID: @autoclosure () -> CGWindowID? = nil,
+                                         ignoresForeground: Bool = false,
                                          ownPID: pid_t = ProcessInfo.processInfo.processIdentifier) -> Bool {
         guard !targetIsMinimized
                 || (targetStartedMinimized && !targetWasObservedRestored)
         else { return false }
         let initialFrontmostPID = frontmostPID()
-        if let sourcePID, let initialFrontmostPID,
+        // A hop travels across desktops, and the system fronts whatever sits
+        // on top of each one it passes. Which app is in front while that runs
+        // says nothing about where the user wants to be, and reading it as
+        // "they moved on" leaves the window they picked behind that app. Such
+        // a pass gives up for the one signal that does carry intent: the app
+        // moved to a window it opened after the switch.
+        if !ignoresForeground,
+           let sourcePID, let initialFrontmostPID,
            initialFrontmostPID != targetPID && initialFrontmostPID != sourcePID && initialFrontmostPID != ownPID {
             return false
         }
@@ -1306,13 +1389,13 @@ enum SwitcherSupport {
         // may sit above a real window. Only query Accessibility when this app
         // is active and the cheap window-server list contains something new.
         // An unavailable focus reading preserves the previous retry behavior.
-        guard initialFrontmostPID == targetPID,
+        guard ignoresForeground || initialFrontmostPID == targetPID,
               !knownWindowIDs.isEmpty,
               !targetAppWindowIDs().isSubset(of: knownWindowIDs) else { return true }
         let focusedWindowID = targetAppFocusedWindowID()
         // Accessibility can wait on the other process. Do not act on the old
         // foreground observation if the user left the app during that wait.
-        guard frontmostPID() == targetPID else { return false }
+        if !ignoresForeground, frontmostPID() != targetPID { return false }
         guard let focusedWindowID else { return true }
         return knownWindowIDs.contains(focusedWindowID)
     }
